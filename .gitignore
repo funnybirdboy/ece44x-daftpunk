@@ -27,3 +27,6 @@
 *.exe
 *.out
 *.app
+
+# NAS Hidden Folder:
+.DS_Store
