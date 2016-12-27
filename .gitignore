@@ -30,3 +30,6 @@
 
 # NAS Hidden Folder:
 .DS_Store
+
+#Additional gitignre
+cores/.gitignore
