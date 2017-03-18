@@ -4,16 +4,11 @@
 #include "Sprite.h"
 #include "sprites.h"
 #include "Matrix.h"
+//TODO delete duplicate funtions and move to external file
 //#include "functions.h"
-#define ARM_MATH_CM4
+#define ARM_MATH_CM4	//this is processor specific
 #include "arm_math.h"
-//#include "math_helper.h"
 
-//#include "arm_math.h"
-//#include "../libraries/CMSIS/Include/arm_math.h"
-//TODO Figure out ISRs
-//TODO create 8 bit pixel alphabet
-//TODO create function with alphabet to print letters.
 ////////////////////////////////////////////////////////////////////////////////
 // CONIFIGURATION
 // These values can be changed to alter the behavior of the spectrum display.
@@ -23,6 +18,7 @@ int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
 float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.
 float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int LEDS_ENABLED = 1;                  // Control if the LED's should display the spectrum or not.  1 is true, 0 is false.
+int MODE = 0; 							// Sets the mode default is 0
 // Useful for turning the LED display on and off with commands from the serial port.
 const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256
 // without running out of memory for buffers and other state.
@@ -30,10 +26,37 @@ const int AUDIO_INPUT_PIN = 14;        // Input ADC pin for audio data.
 const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
-const int MATRIX_PIN = 3;           // Output pin for matrix D_out.
-const int MATRIX_WIDTH = 32;         // Number of ledss.  You should be able to increase this without
+//const int MATRIX_PIN = 3;           // Output pin for matrix D_out.
+const int BUTTON_PIN = 15;				//Input pin for button commands
+const int MATRIX_WIDTH = 48;         // Number of ledss.  You should be able to increase this without
 // any other changes to the program.
 const int MAX_CHARS = 65;              // Max size of the input command buffer
+int display_matrix[24][16] = {
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
@@ -44,7 +67,6 @@ IntervalTimer samplingTimer;
 float samples[FFT_SIZE*2];
 float magnitudes[FFT_SIZE];
 int sampleCounter = 0;
-
 char commandBuffer[MAX_CHARS];
 float frequencyWindow[MATRIX_WIDTH+1];
 float hues[MATRIX_WIDTH];
@@ -53,13 +75,39 @@ float hues[MATRIX_WIDTH];
 ////////////////////////////////////////////////////////////////////////////////
 // MAIN SKETCH FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
-Matrix myLeds = Matrix(0, 2, 1, 4);
+//data, load, clk, quantity
+Matrix myLeds = Matrix(0, 2, 1, 6);
 
 ////////////////////////////////////////////////////////////////////////////////
 // UTILITY FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
 
+//*******************************************************************************
+//                            debounce_switch
+// Adapted from Ganssel's "Guide to Debouncing"
+// Checks the state of pushbutton S0 It shifts in ones till the button is pushed.
+// Function returns a 1 only once per debounced button push so a debounce and toggle
+// function can be implemented at the same time.  Expects active low pushbutton on
+// Port D bit zero.  Debounce time is determined by external loop delay times 12.
+//*******************************************************************************
+int debounce_switch() {
+	static uint16_t state = 0; //holds present state
+	state = (state << 1) | digitalRead(BUTTON_PIN) | 0xE000;
+	if (state == 0xF000) return 1;
+	return 0;
+}
 // Compute the average magnitude of a target frequency window vs. all other frequencies.
+
+void display_test(){
+	int temp_i, temp_j;
+	for (int i = 0; i < 48; i++) {
+		for(int j =0; j<8; j++){
+			//if greater than 8 in next column so add 24(?) to y and subtract 8 from x
+			myLeds.write(i, j, HIGH);
+		}
+	}
+
+}
 void windowMean(float* magnitudes, int lowBin, int highBin, float* windowMean, float* otherMean) {
 	*windowMean = 0;
 	*otherMean = 0;
@@ -100,10 +148,41 @@ void spectrumSetup() {
 	}
 }
 
-void spectrumLoop() {
+void volLoop() {
+	// Update each LED based on the intensity of the audio
+	// in the associated frequency window.
+	display_test(); //write all leds
+	//TODO use sprites to make faster
+	float intensity, otherMean;
+	float max = 0;
+	float min = 1;
+	//  myLeds.setBrightness(1); //TODO make variable
+	for (int i = 0; i < MATRIX_WIDTH; ++i) {
+		windowMean(magnitudes,
+				frequencyToBin(frequencyWindow[i]),
+				frequencyToBin(frequencyWindow[i+1]),
+				&intensity,
+				&otherMean);
+		// Convert intensity to decibels.
+		intensity = 20.0*log10(intensity);
+		// Scale the intensity and clamp between 0 and 1.0.
+		intensity -= SPECTRUM_MIN_DB;
+		intensity = intensity < 0.0 ? 0.0 : intensity;
+		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
+		intensity = intensity > 1.0 ? 1.0 : intensity;
+		//myLeds.clear();
+		if (intensity > max){max = intensity;}
+		if (intensity < min){min = intensity;}
+	}
+	myLeds.setBrightness(int(((max-min)/2)*15)); 
+
+}
+void fftLoop() {
 	// Update each LED based on the intensity of the audio
 	// in the associated frequency window.
 	float intensity, otherMean;
+	float max = 0;
+	float min = 1;
 	//  myLeds.setBrightness(1); //TODO make variable
 	for (int i = 0; i < MATRIX_WIDTH; ++i) {
 		windowMean(magnitudes,
@@ -119,14 +198,14 @@ void spectrumLoop() {
 		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
 		intensity = intensity > 1.0 ? 1.0 : intensity;
 		myLeds.clear();
+		if (intensity > max){max = intensity;}
+		if (intensity < min){min = intensity;}
 		for(int j =0; j<int(intensity*7); j++){
 			//TODO change the hight based on the intenisty
 			myLeds.write(i, j, HIGH);
 		}
-
-		//    pixels.setPixelColor(i, pixelHSVtoRGBColor(hues[i], 1.0, intensity));
 	}
-	//  pixels.show();
+	//myLeds.setBrightness(int(((max-min)/2)*15)); 
 
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,6 +249,8 @@ void setup() {
 	pinMode(AUDIO_INPUT_PIN, INPUT);
 	analogReadResolution(ANALOG_READ_RESOLUTION);
 	analogReadAveraging(ANALOG_READ_AVERAGING);
+
+	pinMode(BUTTON_PIN, INPUT_PULLUP);	//button pin
 
 	// Turn on the power indicator LED.
 	pinMode(POWER_LED_PIN, OUTPUT);
@@ -251,12 +332,7 @@ void parseCommand(char* command) {
 
 	// Turn off the LEDs if the state changed.
 	if (LEDS_ENABLED == 0) {
-		//    for (int i = 0; i < MATRIX_WIDTH; ++i) {
-		//      pixels.setPixelColor(i, 0);
-		//    }
-		//    pixels.show();
 		myLeds.clear(); // clear display
-
 	}
 }
 void parserLoop() {
@@ -277,38 +353,72 @@ void parserLoop() {
 		}
 	}
 }
+void sample_complete(){
+	// Run FFT on sample data.
+	arm_cfft_radix4_instance_f32 fft_inst;
+	arm_cfft_radix4_init_f32(&fft_inst, FFT_SIZE, 0, 1);
+	arm_cfft_radix4_f32(&fft_inst, samples);
+
+	// Calculate magnitude of complex numbers output by the FFT.
+	arm_cmplx_mag_f32(samples, magnitudes, FFT_SIZE);
+
+	if (LEDS_ENABLED == 1)
+	{
+		switch(MODE){
+			case 0:
+				fftLoop();
+				break;
+			case 1:
+				volLoop();
+				break;
+		}
+	}
+
+	// Restart audio sampling.
+	samplingBegin();
+}
+
+void daft_punk(){
+	daft();
+	digitalWriteFast(13, HIGH);
+	//delay(10);
+	//punk();
+	//digitalWriteFast(13, LOW);
+	//delay(1000);
+}
+
 
 int main(void)
 {
 	setup();
-	sei();
-	pinMode(13, OUTPUT);
+	sei();		//enable interrupts
+
 	while (1) {
-		if (samplingIsDone()) {
-			// Run FFT on sample data.
-			arm_cfft_radix4_instance_f32 fft_inst;
-			arm_cfft_radix4_init_f32(&fft_inst, FFT_SIZE, 0, 1);
-			arm_cfft_radix4_f32(&fft_inst, samples);
-
-			// Calculate magnitude of complex numbers output by the FFT.
-		   	arm_cmplx_mag_f32(samples, magnitudes, FFT_SIZE);
-
-			if (LEDS_ENABLED == 1)
-			{
-				spectrumLoop();
-			}
-
-			// Restart audio sampling.
-			samplingBegin();
+		if(debounce_switch()){
+			MODE++;
+			if (MODE > 3)
+				MODE = 0;
 		}
-		parserLoop();
-		//myLeds.clear(); // clear display
-		//daft();
-		//digitalWriteFast(13, HIGH);
-		//delay(1000);
-		//punk();
-		//digitalWriteFast(13, LOW);
-		//delay(1000);
+		switch(MODE){
+			case 0:
+				if (samplingIsDone()){
+					sample_complete();
+				}
+				parserLoop();
+				break;
+			case 1:
+				if (samplingIsDone()){
+					sample_complete();
+				}
+				parserLoop();
+				break;
+			case 2:
+				daft_punk();
+				break;
+			case 3:
+				display_test(); //all LEDs on
+				break;
+		}
 	}
 
 
