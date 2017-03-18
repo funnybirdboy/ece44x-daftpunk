@@ -32,4 +32,4 @@
 .DS_Store
 
 #Additional gitignre
-cores/.gitignore
+teensy_32/cores/.gitignore

@@ -88,7 +88,8 @@ CFLAGS =
 LDFLAGS = -Os -Wl,--gc-sections -mcpu=cortex-m4 -mthumb -T$(BUILDPATH)/mk20dx256.ld
 
 # additional libraries to link, math
-LIBS = -lm
+#LIBS = -lm
+LIBS =  -larm_cortexM4l_math -lm
 
 
 # names for the compiler programs

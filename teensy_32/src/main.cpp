@@ -4,16 +4,18 @@
 #include "Sprite.h"
 #include "sprites.h"
 #include "Matrix.h"
-//#include <Adafruit_NeoPixel.h>
 //#include "functions.h"
 #define ARM_MATH_CM4
-#include <arm_math.h>
+#include "arm_math.h"
+//#include "math_helper.h"
+
 //#include "arm_math.h"
+//#include "../libraries/CMSIS/Include/arm_math.h"
 //TODO Figure out ISRs
 //TODO create 8 bit pixel alphabet
 //TODO create function with alphabet to print letters.
 ////////////////////////////////////////////////////////////////////////////////
-// CONIFIGURATION 
+// CONIFIGURATION
 // These values can be changed to alter the behavior of the spectrum display.
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,14 +24,14 @@ float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that map
 float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int LEDS_ENABLED = 1;                  // Control if the LED's should display the spectrum or not.  1 is true, 0 is false.
 // Useful for turning the LED display on and off with commands from the serial port.
-const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256 
+const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256
 // without running out of memory for buffers and other state.
 const int AUDIO_INPUT_PIN = 14;        // Input ADC pin for audio data.
 const int ANALOG_READ_RESOLUTION = 10; // Bits of resolution for the ADC.
 const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each ADC reading.
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
-const int NEO_PIXEL_PIN = 3;           // Output pin for neo pixels.
-const int NEO_PIXEL_COUNT = 32;         // Number of neo pixels.  You should be able to increase this without
+const int MATRIX_PIN = 3;           // Output pin for matrix D_out.
+const int MATRIX_WIDTH = 32;         // Number of ledss.  You should be able to increase this without
 // any other changes to the program.
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 
@@ -42,10 +44,10 @@ IntervalTimer samplingTimer;
 float samples[FFT_SIZE*2];
 float magnitudes[FFT_SIZE];
 int sampleCounter = 0;
-//Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NEO_PIXEL_COUNT, NEO_PIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
 char commandBuffer[MAX_CHARS];
-float frequencyWindow[NEO_PIXEL_COUNT+1];
-float hues[NEO_PIXEL_COUNT];
+float frequencyWindow[MATRIX_WIDTH+1];
+float hues[MATRIX_WIDTH];
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,24 +89,24 @@ int frequencyToBin(float frequency) {
 
 void spectrumSetup() {
 	// Set the frequency window values by evenly dividing the possible frequency
-	// spectrum across the number of neo pixels.
-	float windowSize = (SAMPLE_RATE_HZ / 2.0) / float(NEO_PIXEL_COUNT);
-	for (int i = 0; i < NEO_PIXEL_COUNT+1; ++i) {
+	// spectrum across the number leds.
+	float windowSize = (SAMPLE_RATE_HZ / 2.0) / float(MATRIX_WIDTH);
+	for (int i = 0; i < MATRIX_WIDTH+1; ++i) {
 		frequencyWindow[i] = i*windowSize;
 	}
 	// Evenly spread hues across all pixels.
-	for (int i = 0; i < NEO_PIXEL_COUNT; ++i) {
-		hues[i] = 360.0*(float(i)/float(NEO_PIXEL_COUNT-1));
+	for (int i = 0; i < MATRIX_WIDTH; ++i) {
+		hues[i] = 360.0*(float(i)/float(MATRIX_WIDTH-1));
 	}
 }
 
 void spectrumLoop() {
-	// Update each LED based on the intensity of the audio 
+	// Update each LED based on the intensity of the audio
 	// in the associated frequency window.
 	float intensity, otherMean;
 	//  myLeds.setBrightness(1); //TODO make variable
-	for (int i = 0; i < NEO_PIXEL_COUNT; ++i) {
-		windowMean(magnitudes, 
+	for (int i = 0; i < MATRIX_WIDTH; ++i) {
+		windowMean(magnitudes,
 				frequencyToBin(frequencyWindow[i]),
 				frequencyToBin(frequencyWindow[i+1]),
 				&intensity,
@@ -119,7 +121,7 @@ void spectrumLoop() {
 		myLeds.clear();
 		for(int j =0; j<int(intensity*7); j++){
 			//TODO change the hight based on the intenisty
-			myLeds.write(i, j, HIGH);  
+			myLeds.write(i, j, HIGH);
 		}
 
 		//    pixels.setPixelColor(i, pixelHSVtoRGBColor(hues[i], 1.0, intensity));
@@ -159,7 +161,7 @@ boolean samplingIsDone() {
 void setup() {
 	//LED matrix crap
 	myLeds.clear();
-	myLeds.setBrightness(1); //value range 0-15 zero is still shows value
+	myLeds.setBrightness(15); //value range 0-15 zero is still shows value
 
 	//Microphone stuff
 	Serial.begin(38400);
@@ -172,10 +174,6 @@ void setup() {
 	// Turn on the power indicator LED.
 	pinMode(POWER_LED_PIN, OUTPUT);
 	digitalWrite(POWER_LED_PIN, HIGH);
-
-	// Initialize neo pixel library and turn off the LEDs
-	//pixels.begin();
-	//pixels.show(); 
 
 	// Clear the input command buffer
 	memset(commandBuffer, 0, sizeof(commandBuffer));
@@ -200,24 +198,19 @@ void punk(){
 	myLeds.write(24, 0, letter_K);
 }
 
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // COMMAND PARSING FUNCTIONS
 // These functions allow parsing simple commands input on the serial port.
 // Commands allow reading and writing variables that control the device.
 //
 // All commands must end with a semicolon character.
-// 
+//
 // Example commands are:
 // GET SAMPLE_RATE_HZ;
 // - Get the sample rate of the device.
 // SET SAMPLE_RATE_HZ 400;
 // - Set the sample rate of the device to 400 hertz.
-// 
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 // Macro used in parseCommand function to simplify parsing get and set commands for a variable
@@ -243,6 +236,9 @@ void parseCommand(char* command) {
 	else if (strcmp(command, "GET FFT_SIZE") == 0) {
 		Serial.println(FFT_SIZE);
 	}
+	else if (strcmp(command, "GET AUDIO_INPUT_PIN") == 0) {
+		Serial.println(AUDIO_INPUT_PIN);
+	}
 	GET_AND_SET(SAMPLE_RATE_HZ)
 		GET_AND_SET(LEDS_ENABLED)
 		GET_AND_SET(SPECTRUM_MIN_DB)
@@ -255,7 +251,7 @@ void parseCommand(char* command) {
 
 	// Turn off the LEDs if the state changed.
 	if (LEDS_ENABLED == 0) {
-		//    for (int i = 0; i < NEO_PIXEL_COUNT; ++i) {
+		//    for (int i = 0; i < MATRIX_WIDTH; ++i) {
 		//      pixels.setPixelColor(i, 0);
 		//    }
 		//    pixels.show();
@@ -293,8 +289,9 @@ int main(void)
 			arm_cfft_radix4_instance_f32 fft_inst;
 			arm_cfft_radix4_init_f32(&fft_inst, FFT_SIZE, 0, 1);
 			arm_cfft_radix4_f32(&fft_inst, samples);
+
 			// Calculate magnitude of complex numbers output by the FFT.
-			arm_cmplx_mag_f32(samples, magnitudes, FFT_SIZE);
+		   	arm_cmplx_mag_f32(samples, magnitudes, FFT_SIZE);
 
 			if (LEDS_ENABLED == 1)
 			{
