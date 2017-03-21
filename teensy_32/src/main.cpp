@@ -15,11 +15,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
-float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.
+int BRIGHTNESS = 0;             		// Brightness control of matrix 0-15
+float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.;
 float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int LEDS_ENABLED = 1;                  // Control if the LED's should display the spectrum or not.  1 is true, 0 is false.
 int MODE = 0; 							// Sets the mode default is 0
 // Useful for turning the LED display on and off with commands from the serial port.
+//const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256
 const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256
 // without running out of memory for buffers and other state.
 const int AUDIO_INPUT_PIN = 14;        // Input ADC pin for audio data.
@@ -97,15 +99,24 @@ int debounce_switch() {
 	return 0;
 }
 // Compute the average magnitude of a target frequency window vs. all other frequencies.
+void all_on_leds(){
+	myLeds.write(0, 0, all_on);
+	myLeds.write(8, 0, all_on);
+	myLeds.write(16, 0, all_on);
+	myLeds.write(24, 0, all_on);
+	myLeds.write(32, 0, all_on);
+	myLeds.write(40, 0, all_on);
+}
 
 void display_test(){
-	int temp_i, temp_j;
-	for (int i = 0; i < 48; i++) {
-		for(int j =0; j<8; j++){
-			//if greater than 8 in next column so add 24(?) to y and subtract 8 from x
-			myLeds.write(i, j, HIGH);
-		}
-	}
+	all_on_leds();
+	// int temp_i, temp_j;
+	// for (int i = 0; i < 48; i++) {
+	// 	for(int j =0; j<8; j++){
+	// 		//if greater than 8 in next column so add 24(?) to y and subtract 8 from x
+	// 		myLeds.write(i, j, HIGH);
+	// 	}
+	// }
 
 }
 void windowMean(float* magnitudes, int lowBin, int highBin, float* windowMean, float* otherMean) {
@@ -174,7 +185,7 @@ void volLoop() {
 		if (intensity > max){max = intensity;}
 		if (intensity < min){min = intensity;}
 	}
-	myLeds.setBrightness(int(((max-min)/2)*15)); 
+	myLeds.setBrightness(int(((max-min)/2)*15));
 
 }
 void fftLoop() {
@@ -205,7 +216,7 @@ void fftLoop() {
 			myLeds.write(i, j, HIGH);
 		}
 	}
-	//myLeds.setBrightness(int(((max-min)/2)*15)); 
+	//myLeds.setBrightness(int(((max-min)/2)*15));
 
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,6 +283,7 @@ void daft(){
 	myLeds.write(17, 0, letter_F);
 	myLeds.write(25, 0, letter_T);
 }
+
 void punk(){
 	myLeds.write(0, 0, letter_P);
 	myLeds.write(9, 0, letter_U);
@@ -320,15 +332,32 @@ void parseCommand(char* command) {
 	else if (strcmp(command, "GET AUDIO_INPUT_PIN") == 0) {
 		Serial.println(AUDIO_INPUT_PIN);
 	}
+	else if (strcmp(command, "SET MODE") == 0) {
+		MODE = 2;
+	}
+	else if (strcmp(command, "GET MODE") == 0) {
+		Serial.println(MODE);
+	}
 	GET_AND_SET(SAMPLE_RATE_HZ)
+	GET_AND_SET(MODE)
 		GET_AND_SET(LEDS_ENABLED)
 		GET_AND_SET(SPECTRUM_MIN_DB)
 		GET_AND_SET(SPECTRUM_MAX_DB)
+		GET_AND_SET(BRIGHTNESS)
 
 		// Update spectrum display values if sample rate was changed.
+		/*
 		if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL) {
 			spectrumSetup();
 		}
+		if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL) {
+			MODE = 2;
+		}
+		*/
+		//TODO actually set as part of this.
+		//if (strstr(command, "SET BRIGHTNESS ") != NULL) {
+		//	myLeds.setBrightness(BRIGHTNESS);
+		//}
 
 	// Turn off the LEDs if the state changed.
 	if (LEDS_ENABLED == 0) {
@@ -399,24 +428,26 @@ int main(void)
 			if (MODE > 3)
 				MODE = 0;
 		}
+		parserLoop(); //process any serial commands
 		switch(MODE){
 			case 0:
 				if (samplingIsDone()){
 					sample_complete();
 				}
-				parserLoop();
 				break;
 			case 1:
 				if (samplingIsDone()){
 					sample_complete();
 				}
-				parserLoop();
 				break;
 			case 2:
-				daft_punk();
+				 myLeds.setBrightness(15); //TODO make variable
+				display_test();
 				break;
 			case 3:
-				display_test(); //all LEDs on
+				myLeds.setBrightness(BRIGHTNESS);
+				//myLeds.setBrightness(0); //TODO make variable
+				diSplay_test();
 				break;
 		}
 	}

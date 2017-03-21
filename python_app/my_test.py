@@ -12,19 +12,41 @@
 
 import sys
 import SerialPortDevice
+import time
 
 
 devices = SerialPortDevice.enumerate_devices()
 for device in devices:
-	print device
-	print dir(device)
-	print device.name
-	#print device.open()
-	#print "fftsize:", device.get_fftsize()
 	device.open()
-	print device.get_name()
+
+	print "\n#################################################"
+	print "Checking Variables"
+	print "#################################################\n"
+	print "name:", device.get_name()
 	print "fftsize:", device.get_fftsize()
 	print "samplerate:", device.get_samplerate()
 	print "audioport:", device.get_audioport()
-#print devices
+	print "mode:", device.get_mode()
+
+	print "\n#################################################"
+	print "Checking Modes"
+	print "#################################################\n"
+	for i in range(0, 3):
+		print "Mode:", i
+		device.set_mode(i)
+		print "waiting..."
+		for j in range(0, 5):
+			#print j
+			time.sleep(1)
+	
+	print "\n#################################################"
+	print "Checking Brightness"
+	print "#################################################\n"
+	device.set_mode(3)
+	for i in range(0,16):
+		print "	", i
+	   	device.set_brightness(i) 
+		time.sleep(0.5)
+
+	device.set_mode(0)
 sys.exit()

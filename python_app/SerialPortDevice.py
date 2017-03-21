@@ -38,9 +38,23 @@ class SerialPortDevice(SpectrogramDevice.SpectrogramDevice):
 		"""Return port used for audio pin."""
 		return self.audioPort
 
+	def get_mode(self):
+		"""Return current mode."""
+		self.port.write('GET MODE;')
+		int(self._readline())
+		return self.mode
+
 	def set_samplerate(self, samplerate):
 		self.port.write('SET SAMPLE_RATE_HZ %d;' % samplerate)
 		self.sampleRate = samplerate
+
+	def set_brightness(self, brightness):
+		self.port.write('SET BRIGHTNESS %d;' % brightness)
+		self.brightness = brightness
+
+	def set_mode(self, mode):
+		self.port.write('SET MODE %d;' % mode)
+		self.mode = mode
 
 	def get_magnitudes(self):
 		"""Return an array of FFT magnitudes.  The number of values returned is the same as the FFT size."""
@@ -57,6 +71,8 @@ class SerialPortDevice(SpectrogramDevice.SpectrogramDevice):
 		self.sampleRate = int(self._readline())
 		self.port.write('GET AUDIO_INPUT_PIN;')
 		self.audioPort = int(self._readline())
+		self.port.write('GET MODE;')
+		self.mode = int(self._readline())
 	def close(self):
 		"""Close communication with the device."""
 		self.port.close()
