@@ -8,6 +8,7 @@
 # Precompiled Headers
 *.gch
 *.pch
+*.elf
 
 # Compiled Dynamic libraries
 *.so
@@ -28,6 +29,7 @@
 *.exe
 *.out
 *.app
+*.hex
 
 # NAS Hidden Folder:
 .DS_Store
