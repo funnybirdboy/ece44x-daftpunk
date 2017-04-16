@@ -79,9 +79,10 @@ float hues[MATRIX_WIDTH];
 // MAIN SKETCH FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
 //data, clk, load, quantity
-	Matrix myLeds = Matrix(0, 2, 1, 1);
-Matrix myLeds2 = Matrix(3, 5, 4, 2);
-Matrix myLeds3 = Matrix(6, 8, 7, 2);
+//Matrix myLeds = Matrix(0, 2, 1, 1);
+//Matrix myLeds2 = Matrix(3, 5, 4, 2);
+Matrix myLeds = Matrix(3, 5, 4, 2);
+//Matrix myLeds3 = Matrix(6, 8, 7, 2);
 
 ////////////////////////////////////////////////////////////////////////////////
 // UTILITY FUNCTIONS
@@ -100,75 +101,44 @@ int debounce_switch() {
 	if (state == 0xF000) return 1;
 	return 0;
 }
-// Compute the average magnitude of a target frequency window vs. all other frequencies.
+
 void all_on_leds(){
-	/*
-	   for( int i = 0; i <= 8; i+=8){
-	   myLeds2.write(i, 0, all_on);
-	//delay(10);
+	for( int i = 0; i <= MATRIX_WIDTH; i+=8){
+		myLeds.write(i, 0, all_on);
 	}
-
-	 */
-	//myLeds2.write(0, 0, all_on);
-
-	for(int j =0; j<8; j++){
-		for (int i = 0; i < MATRIX_WIDTH; i++) {
-			myLeds2.write(i, j, HIGH);
-			myLeds3.write(i, j, HIGH);
-			delay(100);//TODO figure out why this is needed for more than 1 
-			//myLeds.clear();
-		}
-	}
-	//delay(1000);
-	/*
-	   myLeds.write(8, 0, all_on);
-	   myLeds.write(16, 0, all_on);
-	   myLeds.write(24, 0, all_on);
-	 */
-	//myLeds.write(0, 0, letter_D);
-
-	/*
-	   myLeds.write(8, 0, all_on);
-	   myLeds.write(16, 0, all_on);
-	   myLeds.write(24, 0, all_on);
-	   myLeds.write(32, 0, all_on);
-	   myLeds.write(40, 0, all_on);
-	 */
 }
 
 void display_test(){
-	//myLeds.clear();
+	myLeds.clear();
+	delay(1000);
+
 	all_on_leds();
-	// int temp_i, temp_j;
+	delay(1000);
+}
 
-
-
-	//myLeds.clear();
-	/*
-	   for(int j =0; j<8; j++){
-	   delay(100);
-	   for (int i = 0; i < MATRIX_WIDTH; i++) {
-	   myLeds.write(i, j, HIGH);
-	   myLeds.clear();
-	   }
-	   }
-	 */
-
-	/*	
-	//myLeds.clear();
-	for (int i = 0; i < MATRIX_WIDTH; i++) {
-	//delay(1000);
-	//myLeds.clear();
+void bar_fill(int count){
+	//TODO add logic to clear lower and only turn on upper
+	static int previous = 0;
+	if (count != previous) //prevent some needless flickering
+		myLeds.clear();
 	for(int j =0; j<8; j++){
-	//if greater than 8 in next column so add 24(?) to y and subtract 8 from x
-	//myLeds.write(i, j, HIGH);
-	myLeds2.write(i, j, HIGH);
+		//delay(100);
+		for (int i = 0; i < count; i++) {
+			myLeds.write(i, j, HIGH);
+		}
 	}
-	}
-	 */
-
+	previous = count;
 
 }
+
+void bar_filler(){
+	myLeds.clear();
+	for(int j =0; j<MATRIX_WIDTH; j++){
+		bar_fill(j);
+		delay(1000);
+	}
+}
+
 void make_it_rain(){
 	for(int j =0; j<8; j++){
 		//delay(100);
@@ -216,10 +186,10 @@ void spectrumSetup() {
 	}
 	// Evenly spread hues across all pixels.
 	/*
-	for (int i = 0; i < MATRIX_WIDTH; ++i) {
-		hues[i] = 360.0*(float(i)/float(MATRIX_WIDTH-1));
-	}
-	*/
+	   for (int i = 0; i < MATRIX_WIDTH; ++i) {
+	   hues[i] = 360.0*(float(i)/float(MATRIX_WIDTH-1));
+	   }
+	 */
 }
 
 void volLoop() {
@@ -248,7 +218,10 @@ void volLoop() {
 		if (intensity > max){max = intensity;}
 		if (intensity < min){min = intensity;}
 	}
-	myLeds.setBrightness(int(((max-min)/2)*15));
+	myLeds.setBrightness(int(((max-min)/2)*15)); //old method
+	//bar_fill(int(((max-min)/2)*MATRIX_WIDTH));
+	//bar_fill(int(intensity*8));
+	
 
 }
 void fftLoop() {
@@ -318,12 +291,12 @@ boolean samplingIsDone() {
 
 void setup() {
 	//LED matrix crap
+	//myLeds.clear();
 	myLeds.clear();
-	myLeds2.clear();
-	myLeds3.clear();
+	//myLeds3.clear();
+	//myLeds.setBrightness(15); //value range 0-15 zero is still shows value
 	myLeds.setBrightness(15); //value range 0-15 zero is still shows value
-	myLeds2.setBrightness(15); //value range 0-15 zero is still shows value
-	myLeds3.setBrightness(15); //value range 0-15 zero is still shows value
+	//myLeds3.setBrightness(15); //value range 0-15 zero is still shows value
 
 	//Microphone stuff
 	Serial.begin(38400);
@@ -541,22 +514,19 @@ int main(void)
 				}
 				break;
 			case 1:
-				//myLeds.setBrightness(0);
+				myLeds.setBrightness(0);
 				if (samplingIsDone()){
 					sample_complete();
 				}
 				break;
 			case 2:
-				//myLeds.setBrightness(15); //TODO make variable
-				//myLeds.setRegister(REG_DISPLAYTEST, 0x00);
-				// myLeds.clear();
-				//myLeds.setBrightness(15);
-				display_test();
-				//make_it_rain();
+				myLeds.setBrightness(1);
+				bar_filler();
+				//display_test();
 				break;
 			case 3:
 				//setup();
-				myLeds.setBrightness(0); //TODO make variable
+				//myLeds.setBrightness(0); //TODO make variable
 				//daft_punk();
 
 				display_test();
