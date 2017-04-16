@@ -38,15 +38,18 @@ for device in devices:
 		for j in range(0, 5):
 			#print j
 			time.sleep(1)
-	
+	'''
 	print "\n#################################################"
 	print "Checking Brightness"
 	print "#################################################\n"
-	device.set_mode(3)
-	for i in range(0,16):
+	#device.set_mode(0)
+	for i in range(15,0):
+		device.set_mode(3)
 		print "	", i
 	   	device.set_brightness(i) 
 		time.sleep(0.5)
 
+	device.set_brightness(0)
+	'''
 	device.set_mode(0)
 sys.exit()
