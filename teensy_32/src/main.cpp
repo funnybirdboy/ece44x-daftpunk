@@ -16,7 +16,7 @@
 #define REG_DISPLAYTEST 0x0F
 int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
 int BRIGHTNESS = 0;             		// Brightness control of matrix 0-15
-float SPECTRUM_MIN_DB = 30.0;          // Audio intensity (in decibels) that maps to low LED brightness.;
+float SPECTRUM_MIN_DB = 40.0;          // Audio intensity (in decibels) that maps to low LED brightness.;
 float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int LEDS_ENABLED = 1;                  // Control if the LED's should display the spectrum or not.  1 is true, 0 is false.
 int MODE = 0; 							// Sets the mode default is 0
@@ -30,7 +30,7 @@ const int ANALOG_READ_AVERAGING = 16;  // Number of samples to average with each
 const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to use Teensy 3.0's onboard LED).
 //const int MATRIX_PIN = 3;           // Output pin for matrix D_out.
 const int BUTTON_PIN = 15;				//Input pin for button commands
-const int NUM_MATRIX = 2;
+const int NUM_MATRIX = 6;
 const int MATRIX_WIDTH = NUM_MATRIX * 8;         // Number of ledss.  You should be able to increase this without
 // any other changes to the program.
 const int MAX_CHARS = 65;              // Max size of the input command buffer
@@ -71,7 +71,8 @@ float samples[FFT_SIZE*2];
 float magnitudes[FFT_SIZE];
 int sampleCounter = 0;
 char commandBuffer[MAX_CHARS];
-float frequencyWindow[MATRIX_WIDTH+1];
+//float frequencyWindow[MATRIX_WIDTH+1]; //FIXME had to do this for it to make more sense
+float frequencyWindow[16+1];
 float hues[MATRIX_WIDTH];
 
 
@@ -81,7 +82,7 @@ float hues[MATRIX_WIDTH];
 //data, clk, load, quantity
 //Matrix myLeds = Matrix(0, 2, 1, 1);
 //Matrix myLeds2 = Matrix(3, 5, 4, 2);
-Matrix myLeds = Matrix(3, 5, 4, 2);
+Matrix myLeds = Matrix(3, 5, 4, NUM_MATRIX);
 //Matrix myLeds3 = Matrix(6, 8, 7, 2);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,8 +109,15 @@ void all_on_leds(){
 	}
 }
 
+void all_off_leds(){
+	for( int i = 0; i <= MATRIX_WIDTH; i+=8){
+		myLeds.write(i, 0, all_off);
+	}
+}
+
 void display_test(){
-	myLeds.clear();
+	//myLeds.clear();
+	all_off_leds();
 	delay(1000);
 
 	all_on_leds();
@@ -119,8 +127,8 @@ void display_test(){
 void bar_fill(int count){
 	//TODO add logic to clear lower and only turn on upper
 	static int previous = 0;
-	if (count != previous) //prevent some needless flickering
-		myLeds.clear();
+	//if (count != previous) //prevent some needless flickering
+	//	myLeds.clear();
 	for(int j =0; j<8; j++){
 		//delay(100);
 		for (int i = 0; i < count; i++) {
@@ -137,6 +145,31 @@ void bar_filler(){
 		bar_fill(j);
 		delay(1000);
 	}
+}
+void flip_flop(){
+	myLeds.clear();
+	static int previous = 0;
+
+	if (previous == 0){
+		for(int j =0; j<8; j++){
+			for (int i = 0; i < MATRIX_WIDTH/2; i++) {
+				myLeds.write(i, j, HIGH);
+				//delay(100);
+			}
+		}
+		previous = 1;
+	}
+	else{
+		for(int j =0; j<8; j++){
+			for (int i = MATRIX_WIDTH/2; i < MATRIX_WIDTH; i++) {
+				myLeds.write(i, j, HIGH);
+				//delay(100);
+			}
+		}
+		previous = 0;
+	}
+	delay(1000);
+
 }
 
 void make_it_rain(){
@@ -200,7 +233,6 @@ void volLoop() {
 	float intensity, otherMean;
 	float max = 0;
 	float min = 1;
-	//  myLeds.setBrightness(1); //TODO make variable
 	for (int i = 0; i < MATRIX_WIDTH; ++i) {
 		windowMean(magnitudes,
 				frequencyToBin(frequencyWindow[i]),
@@ -221,17 +253,17 @@ void volLoop() {
 	myLeds.setBrightness(int(((max-min)/2)*15)); //old method
 	//bar_fill(int(((max-min)/2)*MATRIX_WIDTH));
 	//bar_fill(int(intensity*8));
-	
+
 
 }
 void fftLoop() {
 	// Update each LED based on the intensity of the audio
 	// in the associated frequency window.
 	float intensity, otherMean;
-	float max = 0;
-	float min = 1;
-	//  myLeds.setBrightness(1); //TODO make variable
-	for (int i = 0; i < MATRIX_WIDTH; ++i) {
+	//float max = 0;
+	//float min = 1;
+		myLeds.clear();
+	for (int i = 0; i < 8; ++i) {
 		windowMean(magnitudes,
 				frequencyToBin(frequencyWindow[i]),
 				frequencyToBin(frequencyWindow[i+1]),
@@ -244,12 +276,11 @@ void fftLoop() {
 		intensity = intensity < 0.0 ? 0.0 : intensity;
 		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
 		intensity = intensity > 1.0 ? 1.0 : intensity;
-		myLeds.clear();
-		if (intensity > max){max = intensity;}
-		if (intensity < min){min = intensity;}
-		for(int j =0; j<int(intensity*7); j++){
-			//TODO change the hight based on the intenisty
-			myLeds.write(i, j, HIGH);
+		//if (intensity > max){max = intensity;}
+		//if (intensity < min){min = intensity;}
+		for(int j = 8; j>8-int(intensity*7); j--){
+			//TODO change axis of display
+			myLeds.write(i+16, j, HIGH);
 		}
 		/*
 		   for(int j =int(intensity*7); j<8; j++){
@@ -257,8 +288,24 @@ void fftLoop() {
 		   }
 		 */
 	}
+	for (int i = 8; i < 16; ++i) {
+		windowMean(magnitudes,
+				frequencyToBin(frequencyWindow[i]),
+				frequencyToBin(frequencyWindow[i+1]),
+				&intensity,
+				&otherMean);
+		// Convert intensity to decibels.
+		intensity = 20.0*log10(intensity);
+		// Scale the intensity and clamp between 0 and 1.0.
+		intensity -= SPECTRUM_MIN_DB;
+		intensity = intensity < 0.0 ? 0.0 : intensity;
+		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
+		intensity = intensity > 1.0 ? 1.0 : intensity;
+		for(int j = 8; j>8-int(intensity*7); j--){
+			myLeds.write(i+24, j, HIGH);
+		}
+	}
 	//myLeds.setBrightness(int(((max-min)/2)*15));
-
 }
 ////////////////////////////////////////////////////////////////////////////////
 // SAMPLING FUNCTIONS
@@ -335,13 +382,13 @@ void setup() {
  */
 void daft(){
 	myLeds.write(0, 0, letter_D);
-	delay(1000);
-	myLeds.write(0, 0, letter_A);
-	delay(1000);
-	myLeds.write(0, 0, letter_F);
-	delay(1000);
-	myLeds.write(0, 0, letter_T);
-	delay(1000);
+	//delay(1000);
+	myLeds.write(24, 0, letter_A);
+	//delay(1000);
+	myLeds.write(8, 0, letter_F);
+	//delay(1000);
+	myLeds.write(32, 0, letter_T);
+	//delay(1000);
 }
 /*
    void punk(){
@@ -357,13 +404,13 @@ void daft(){
  */
 void punk(){
 	myLeds.write(0, 0, letter_P);
-	delay(1000);
-	myLeds.write(0, 0, letter_U);
-	delay(1000);
-	myLeds.write(0, 0, letter_N);
-	delay(1000);
-	myLeds.write(0, 0, letter_K);
-	delay(1000);
+	//delay(1000);
+	myLeds.write(24, 0, letter_U);
+	//delay(1000);
+	myLeds.write(8, 0, letter_N);
+	//delay(1000);
+	myLeds.write(32, 0, letter_K);
+	//delay(1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -486,7 +533,7 @@ void sample_complete(){
 void daft_punk(){
 	daft();
 	digitalWriteFast(13, HIGH);
-	delay(1000);
+	delay(1000);;
 	punk();
 	digitalWriteFast(13, LOW);
 	delay(1000);
@@ -499,7 +546,8 @@ int main(void)
 	setup();
 	sei();		//enable interrupts
 
-	MODE = 2;	//inital mode
+	myLeds.setBrightness(10); //TODO make variable
+	MODE = 0;	//inital mode
 	while (1) {
 		if(debounce_switch()){
 			MODE++;
@@ -520,8 +568,10 @@ int main(void)
 				}
 				break;
 			case 2:
-				myLeds.setBrightness(1);
-				bar_filler();
+				myLeds.setBrightness(0);
+				//flip_flop();
+				//bar_filler();
+				daft_punk();
 				//display_test();
 				break;
 			case 3:
