@@ -16,8 +16,8 @@
 #define REG_DISPLAYTEST 0x0F
 int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
 int BRIGHTNESS = 0;             		// Brightness control of matrix 0-15
-float SPECTRUM_MIN_DB = 40.0;          // Audio intensity (in decibels) that maps to low LED brightness.;
-float SPECTRUM_MAX_DB = 60.0;          // Audio intensity (in decibels) that maps to high LED brightness.
+float SPECTRUM_MIN_DB = 50.0;          // Audio intensity (in decibels) that maps to low LED brightness.;
+float SPECTRUM_MAX_DB = 70.0;          // Audio intensity (in decibels) that maps to high LED brightness.
 int LEDS_ENABLED = 1;                  // Control if the LED's should display the spectrum or not.  1 is true, 0 is false.
 int MODE = 0; 							// Sets the mode default is 0
 // Useful for turning the LED display on and off with commands from the serial port.
@@ -34,33 +34,7 @@ const int NUM_MATRIX = 6;
 const int MATRIX_WIDTH = NUM_MATRIX * 8;         // Number of ledss.  You should be able to increase this without
 // any other changes to the program.
 const int MAX_CHARS = 65;              // Max size of the input command buffer
-int display_matrix[24][16] = {
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-	{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-};
-
+int current_matrix[48][8];		//FIXME should actually be used
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
 // These shouldn't be modified unless you know what you're doing.
@@ -75,15 +49,8 @@ char commandBuffer[MAX_CHARS];
 float frequencyWindow[16+1];
 float hues[MATRIX_WIDTH];
 
-
-////////////////////////////////////////////////////////////////////////////////
-// MAIN SKETCH FUNCTIONS
-////////////////////////////////////////////////////////////////////////////////
 //data, clk, load, quantity
-//Matrix myLeds = Matrix(0, 2, 1, 1);
-//Matrix myLeds2 = Matrix(3, 5, 4, 2);
 Matrix myLeds = Matrix(3, 5, 4, NUM_MATRIX);
-//Matrix myLeds3 = Matrix(6, 8, 7, 2);
 
 ////////////////////////////////////////////////////////////////////////////////
 // UTILITY FUNCTIONS
@@ -116,29 +83,71 @@ void all_off_leds(){
 }
 
 void display_test(){
-	//myLeds.clear();
-	all_off_leds();
-	delay(1000);
-
-	all_on_leds();
-	delay(1000);
-}
-
-void bar_fill(int count){
-	//TODO add logic to clear lower and only turn on upper
-	static int previous = 0;
-	//if (count != previous) //prevent some needless flickering
-	//	myLeds.clear();
-	for(int j =0; j<8; j++){
-		//delay(100);
-		for (int i = 0; i < count; i++) {
-			myLeds.write(i, j, HIGH);
+	static int test = 12;
+	test = test -1;
+	for(int j = 0; j<8; j++){
+		for (int i = 0; i < test; ++i) {
+			if(current_matrix[i][j]!=1){
+				myLeds.write(i, j, HIGH);
+				current_matrix[i][j] =1;
+			}
+		}
+		for (int i = test; i < 24; ++i) {
+			if(current_matrix[i][j]!=0){
+				myLeds.write(i, j, LOW);
+				current_matrix[i][j]=0;
+			}
 		}
 	}
-	previous = count;
+	for(int j = 8; j<16; j++){
+		for (int i = 24; i < 24+test; ++i) {
+			if(current_matrix[i][j-8]!=1){
+				myLeds.write(i, j-8, HIGH);
+				current_matrix[i][j-8]=1;
+			}
+		}
+		for (int i = 24+test; i < 48; ++i) {
+			if(current_matrix[i][j-8]!=0){
+				myLeds.write(i, j-8, LOW);
+				current_matrix[i][j-8]=0;
+			}
+		}
+	}
+	//delay(1000);
+	/*
+	   all_off_leds();
+	   delay(1000);
 
+	   all_on_leds();
+	   delay(1000);
+	 */
 }
 
+//from bottom of display fills all rows up to provided count
+void bar_fill(int count){
+	static int previous = 0;
+	if (count != previous){ //prevent some needless flickering
+		for(int j = previous; j<8; j++){
+			for (int i = 0; i < count; i++) {
+				myLeds.write(i, j, HIGH);
+			}
+			for (int i = count; i < 24; i++) {
+				myLeds.write(i, j, LOW);
+			}
+		}
+		for(int j = 8; j<16; j++){
+			for (int i = 24; i < 24+count; i++) {
+				myLeds.write(i, j-8, HIGH);
+			}
+			for (int i = 24+count; i < 48; i++) {
+				myLeds.write(i, j-8, LOW);
+			}
+		}
+		previous = count;
+	}
+
+}
+// used to test bar_fill()
 void bar_filler(){
 	myLeds.clear();
 	for(int j =0; j<MATRIX_WIDTH; j++){
@@ -146,6 +155,8 @@ void bar_filler(){
 		delay(1000);
 	}
 }
+
+//flashes left then right whole column
 void flip_flop(){
 	myLeds.clear();
 	static int previous = 0;
@@ -154,7 +165,6 @@ void flip_flop(){
 		for(int j =0; j<8; j++){
 			for (int i = 0; i < MATRIX_WIDTH/2; i++) {
 				myLeds.write(i, j, HIGH);
-				//delay(100);
 			}
 		}
 		previous = 1;
@@ -163,7 +173,6 @@ void flip_flop(){
 		for(int j =0; j<8; j++){
 			for (int i = MATRIX_WIDTH/2; i < MATRIX_WIDTH; i++) {
 				myLeds.write(i, j, HIGH);
-				//delay(100);
 			}
 		}
 		previous = 0;
@@ -172,6 +181,7 @@ void flip_flop(){
 
 }
 
+// Makes crazy patterns
 void make_it_rain(){
 	for(int j =0; j<8; j++){
 		//delay(100);
@@ -180,8 +190,8 @@ void make_it_rain(){
 			myLeds.clear();
 		}
 	}
-
 }
+
 void windowMean(float* magnitudes, int lowBin, int highBin, float* windowMean, float* otherMean) {
 	*windowMean = 0;
 	*otherMean = 0;
@@ -217,19 +227,12 @@ void spectrumSetup() {
 	for (int i = 0; i < MATRIX_WIDTH+1; ++i) {
 		frequencyWindow[i] = i*windowSize;
 	}
-	// Evenly spread hues across all pixels.
-	/*
-	   for (int i = 0; i < MATRIX_WIDTH; ++i) {
-	   hues[i] = 360.0*(float(i)/float(MATRIX_WIDTH-1));
-	   }
-	 */
 }
 
 void volLoop() {
 	// Update each LED based on the intensity of the audio
 	// in the associated frequency window.
-	display_test(); //write all leds
-	//TODO use sprites to make faster
+	static int previous = 0;
 	float intensity, otherMean;
 	float max = 0;
 	float min = 1;
@@ -250,7 +253,13 @@ void volLoop() {
 		if (intensity > max){max = intensity;}
 		if (intensity < min){min = intensity;}
 	}
-	myLeds.setBrightness(int(((max-min)/2)*15)); //old method
+	//myLeds.setBrightness(int(((max-min)/2)*15)); //old method
+	int average = int(((max-min)/2)*24); //old method
+	previous+=1;
+	if(previous >=3){
+		bar_fill(average);
+		previous =0;
+	}
 	//bar_fill(int(((max-min)/2)*MATRIX_WIDTH));
 	//bar_fill(int(intensity*8));
 
@@ -262,7 +271,8 @@ void fftLoop() {
 	float intensity, otherMean;
 	//float max = 0;
 	//float min = 1;
-		myLeds.clear();
+	myLeds.clear();
+	//TODO use a static array to determine if the led is already turned on.
 	for (int i = 0; i < 8; ++i) {
 		windowMean(magnitudes,
 				frequencyToBin(frequencyWindow[i]),
@@ -276,17 +286,12 @@ void fftLoop() {
 		intensity = intensity < 0.0 ? 0.0 : intensity;
 		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
 		intensity = intensity > 1.0 ? 1.0 : intensity;
-		//if (intensity > max){max = intensity;}
-		//if (intensity < min){min = intensity;}
-		for(int j = 8; j>8-int(intensity*7); j--){
-			//TODO change axis of display
-			myLeds.write(i+16, j, HIGH);
+		for(int j = 0; j<int(intensity*24); j++){
+			myLeds.write(j, i, HIGH);
 		}
-		/*
-		   for(int j =int(intensity*7); j<8; j++){
-		   myLeds.write(i, j, LOW); //Zero others 
-		   }
-		 */
+		//for(int j = int(intensity*24); j<24; j++){
+		//	myLeds.write(j, i, LOW);
+		// }
 	}
 	for (int i = 8; i < 16; ++i) {
 		windowMean(magnitudes,
@@ -301,11 +306,32 @@ void fftLoop() {
 		intensity = intensity < 0.0 ? 0.0 : intensity;
 		intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
 		intensity = intensity > 1.0 ? 1.0 : intensity;
-		for(int j = 8; j>8-int(intensity*7); j--){
-			myLeds.write(i+24, j, HIGH);
+		for(int j = 24; j<int(intensity*24+24); j++){
+			myLeds.write(j, i-8, HIGH);
 		}
+		//for(int j = int(intensity*24+24); j<48; j++){
+		//myLeds.write(j, i-8, LOW);
+		//}
 	}
-	//myLeds.setBrightness(int(((max-min)/2)*15));
+	/*
+	   for (int i = 8; i < 16; ++i) {
+	   windowMean(magnitudes,
+	   frequencyToBin(frequencyWindow[i]),
+	   frequencyToBin(frequencyWindow[i+1]),
+	   &intensity,
+	   &otherMean);
+// Convert intensity to decibels.
+intensity = 20.0*log10(intensity);
+// Scale the intensity and clamp between 0 and 1.0.
+intensity -= SPECTRUM_MIN_DB;
+intensity = intensity < 0.0 ? 0.0 : intensity;
+intensity /= (SPECTRUM_MAX_DB-SPECTRUM_MIN_DB);
+intensity = intensity > 1.0 ? 1.0 : intensity;
+for(int j = 8; j>8-int(intensity*7); j--){
+myLeds.write(i+24, j, HIGH);
+}
+}
+	 */
 }
 ////////////////////////////////////////////////////////////////////////////////
 // SAMPLING FUNCTIONS
@@ -337,15 +363,20 @@ boolean samplingIsDone() {
 
 
 void setup() {
-	//LED matrix crap
-	//myLeds.clear();
-	myLeds.clear();
-	//myLeds3.clear();
-	//myLeds.setBrightness(15); //value range 0-15 zero is still shows value
-	myLeds.setBrightness(15); //value range 0-15 zero is still shows value
-	//myLeds3.setBrightness(15); //value range 0-15 zero is still shows value
+	//set absurd initial value
+	//FIXME should actually be using this
+	for(int i =0; i <48; i++){
+		for(int j=0; j<8; j++){
+			current_matrix[i][j] = 2; 
+		}
+	}
 
-	//Microphone stuff
+	// Clear display, not strictly needed.
+	// Set initial brightness, default is usuablly max
+	myLeds.clear();
+	myLeds.setBrightness(15); //value range 0-15 zero still shows value
+
+	// Open serial channel for app
 	Serial.begin(38400);
 
 	// Set up ADC and audio input.
@@ -369,50 +400,32 @@ void setup() {
 	samplingBegin();
 
 }
-/*
-   void daft(){
-   myLeds.write(0, 0, letter_D);
-   delay(100);
-   myLeds.write(9, 0, letter_A);
-   delay(100);
-   myLeds.write(17, 0, letter_F);
-   delay(100);
-   myLeds.write(25, 0, letter_T);
-   }
- */
+
+////////////////////////////////////////////////////////////////////////////////
+// SILLY PRINT WORK FUNCTIONS
+////////////////////////////////////////////////////////////////////////////////
 void daft(){
 	myLeds.write(0, 0, letter_D);
-	//delay(1000);
 	myLeds.write(24, 0, letter_A);
-	//delay(1000);
 	myLeds.write(8, 0, letter_F);
-	//delay(1000);
 	myLeds.write(32, 0, letter_T);
-	//delay(1000);
-}
-/*
-   void punk(){
-   myLeds.write(0, 0, letter_P);
-   delay(1000);
-   myLeds.write(9, 0, letter_U);
-   delay(1000);
-   myLeds.write(16, 0, letter_N);
-   delay(1000);
-   myLeds.write(24, 0, letter_K);
-   delay(1000);
-   }
- */
-void punk(){
-	myLeds.write(0, 0, letter_P);
-	//delay(1000);
-	myLeds.write(24, 0, letter_U);
-	//delay(1000);
-	myLeds.write(8, 0, letter_N);
-	//delay(1000);
-	myLeds.write(32, 0, letter_K);
-	//delay(1000);
 }
 
+void punk(){
+	myLeds.write(0, 0, letter_P);
+	myLeds.write(24, 0, letter_U);
+	myLeds.write(8, 0, letter_N);
+	myLeds.write(32, 0, letter_K);
+}
+
+void daft_punk(){
+	daft();
+	digitalWriteFast(13, HIGH);
+	delay(1000);;
+	punk();
+	digitalWriteFast(13, LOW);
+	delay(1000);
+}
 ////////////////////////////////////////////////////////////////////////////////
 // COMMAND PARSING FUNCTIONS
 // These functions allow parsing simple commands input on the serial port.
@@ -467,21 +480,8 @@ void parseCommand(char* command) {
 		GET_AND_SET(SPECTRUM_MAX_DB)
 		GET_AND_SET(BRIGHTNESS)
 
-		// Update spectrum display values if sample rate was changed.
-		/*
-		   if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL) {
-		   spectrumSetup();
-		   }
-		   if (strstr(command, "SET SAMPLE_RATE_HZ ") != NULL) {
-		   MODE = 2;
-		   }
-		 */
-		//TODO actually set as part of this.
-		//if (strstr(command, "SET BRIGHTNESS ") != NULL) {
-		//	myLeds.setBrightness(BRIGHTNESS);
-		//}
-
 		// Turn off the LEDs if the state changed.
+		// Not actually being used in app
 		if (LEDS_ENABLED == 0) {
 			myLeds.clear(); // clear display
 		}
@@ -530,14 +530,6 @@ void sample_complete(){
 	samplingBegin();
 }
 
-void daft_punk(){
-	daft();
-	digitalWriteFast(13, HIGH);
-	delay(1000);;
-	punk();
-	digitalWriteFast(13, LOW);
-	delay(1000);
-}
 
 
 int main(void)
@@ -551,7 +543,7 @@ int main(void)
 	while (1) {
 		if(debounce_switch()){
 			MODE++;
-			if (MODE > 4)
+			if (MODE > 3)
 				MODE = 0;
 		}
 		parserLoop(); //process any serial commands
@@ -562,24 +554,26 @@ int main(void)
 				}
 				break;
 			case 1:
-				myLeds.setBrightness(0);
+				//myLeds.setBrightness(0);
 				if (samplingIsDone()){
 					sample_complete();
 				}
 				break;
 			case 2:
-				myLeds.setBrightness(0);
+				//myLeds.setBrightness(0);
 				//flip_flop();
 				//bar_filler();
-				daft_punk();
+				bar_fill(21);
+				//daft_punk();
 				//display_test();
 				break;
 			case 3:
-				//setup();
+				//setup();/
 				//myLeds.setBrightness(0); //TODO make variable
+				make_it_rain();
 				//daft_punk();
 
-				display_test();
+				//display_test();
 				break;
 			case 4:
 				//myLeds.clear();
