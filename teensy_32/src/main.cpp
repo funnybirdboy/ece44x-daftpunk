@@ -35,11 +35,11 @@ const int MATRIX_WIDTH = NUM_MATRIX * 8;         // Number of ledss.  You should
 // any other changes to the program.
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 int current_matrix[48][8];		//FIXME should actually be used
+int in_vol_loop =0;
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
 // These shouldn't be modified unless you know what you're doing.
 ////////////////////////////////////////////////////////////////////////////////
-
 IntervalTimer samplingTimer;
 float samples[FFT_SIZE*2];
 float magnitudes[FFT_SIZE];
@@ -184,7 +184,6 @@ void flip_flop(){
 // Makes crazy patterns
 void make_it_rain(){
 	for(int j =0; j<8; j++){
-		//delay(100);
 		for (int i = 0; i < MATRIX_WIDTH; i++) {
 			myLeds.write(i, j, HIGH);
 			myLeds.clear();
@@ -253,13 +252,15 @@ void volLoop() {
 		if (intensity > max){max = intensity;}
 		if (intensity < min){min = intensity;}
 	}
-	//myLeds.setBrightness(int(((max-min)/2)*15)); //old method
-	int average = int(((max-min)/2)*24); //old method
-	previous+=1;
-	if(previous >=3){
-		bar_fill(average);
-		previous =0;
-	}
+	myLeds.setBrightness(int(((max-min)/2)*15)); //old method
+	/*//this is what I was trying to do
+	  int average = int(((max-min)/2)*24); //old method
+	  previous+=1;
+	  if(previous >=3){
+	  bar_fill(average);
+	  previous =0;
+	  }
+	 */
 	//bar_fill(int(((max-min)/2)*MATRIX_WIDTH));
 	//bar_fill(int(intensity*8));
 
@@ -521,6 +522,10 @@ void sample_complete(){
 				break;
 			case 1:
 				//fftLoop();
+				if(in_vol_loop ==0){
+					all_on_leds();
+					in_vol_loop =1;
+				}
 				volLoop();
 				break;
 		}
@@ -537,16 +542,31 @@ int main(void)
 	//delay(10);
 	setup();
 	sei();		//enable interrupts
-
+	static int watchdog =0; 
+	static int watchdog2 =0; 
 	myLeds.setBrightness(10); //TODO make variable
 	MODE = 0;	//inital mode
 	while (1) {
 		if(debounce_switch()){
 			MODE++;
-			if (MODE > 3)
+			if (MODE >= 3)
 				MODE = 0;
 		}
+		watchdog++;
+		watchdog2++;
 		parserLoop(); //process any serial commands
+		if(watchdog >= 1000000){
+			//myLeds.clear();
+			//_reboot_Teensyduino_(); //restarts teensy
+			myLeds = Matrix(3, 5, 4, NUM_MATRIX);
+			watchdog =0;
+		}
+		if(watchdog2 >= 100000000){
+			//myLeds.clear();
+			_reboot_Teensyduino_(); //restarts teensy
+			//myLeds = Matrix(3, 5, 4, NUM_MATRIX);
+			watchdog2 =0;
+		}
 		switch(MODE){
 			case 0:
 				if (samplingIsDone()){
@@ -563,8 +583,10 @@ int main(void)
 				//myLeds.setBrightness(0);
 				//flip_flop();
 				//bar_filler();
-				bar_fill(21);
+				//bar_fill(21);
+				//in_vol_loop =0;
 				//daft_punk();
+				all_on_leds();
 				//display_test();
 				break;
 			case 3:
