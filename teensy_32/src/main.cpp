@@ -8,6 +8,7 @@
 //#include "functions.h"
 #define ARM_MATH_CM4	//this is processor specific
 #include "arm_math.h"
+#include "/Applications/Arduino.app/Contents/Java/hardware/teensy/avr/libraries/EEPROM/EEPROM.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONIFIGURATION
@@ -36,6 +37,7 @@ const int MATRIX_WIDTH = NUM_MATRIX * 8;         // Number of ledss.  You should
 const int MAX_CHARS = 65;              // Max size of the input command buffer
 int current_matrix[48][8];		//FIXME should actually be used
 int in_vol_loop =0;
+int mode_address =0;
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
 // These shouldn't be modified unless you know what you're doing.
@@ -74,6 +76,14 @@ void all_on_leds(){
 	for( int i = 0; i <= MATRIX_WIDTH; i+=8){
 		myLeds.write(i, 0, all_on);
 	}
+	/*
+	   for( int i = 0; i <= 48; i++){
+	   for( int j = 0; j <= MATRIX_WIDTH; j++){
+	   myLeds.write(i, j, HIGH);
+	   }
+	   }
+	 */
+
 }
 
 void all_off_leds(){
@@ -183,12 +193,18 @@ void flip_flop(){
 
 // Makes crazy patterns
 void make_it_rain(){
+	myLeds.clear();
+	for(int j =0; j<10; j++){
+		myLeds.write(random(0, 47), random(0,7), HIGH);
+	}
+/*
 	for(int j =0; j<8; j++){
 		for (int i = 0; i < MATRIX_WIDTH; i++) {
 			myLeds.write(i, j, HIGH);
 			myLeds.clear();
 		}
 	}
+	*/
 }
 
 void windowMean(float* magnitudes, int lowBin, int highBin, float* windowMean, float* otherMean) {
@@ -252,15 +268,25 @@ void volLoop() {
 		if (intensity > max){max = intensity;}
 		if (intensity < min){min = intensity;}
 	}
-	myLeds.setBrightness(int(((max-min)/2)*15)); //old method
-	/*//this is what I was trying to do
-	  int average = int(((max-min)/2)*24); //old method
-	  previous+=1;
-	  if(previous >=3){
-	  bar_fill(average);
-	  previous =0;
-	  }
-	 */
+	int average = int(((max-min))*15);
+	if(average < 5){
+    //  all_off_leds();
+	all_on_leds();
+	myLeds.setBrightness(1); //old method
+	}
+	else{
+	all_on_leds();
+	myLeds.setBrightness(average); //old method
+	}
+	//this is what I was trying to do
+	  //int average = int(((max-min)/2)*24); //old method
+	  //previous+=1;
+	  //if(previous >=3){
+	  //bar_fill(3);
+	  //bar_fill(average);
+	  //previous =0;
+	  //}
+	 
 	//bar_fill(int(((max-min)/2)*MATRIX_WIDTH));
 	//bar_fill(int(intensity*8));
 
@@ -366,16 +392,17 @@ boolean samplingIsDone() {
 void setup() {
 	//set absurd initial value
 	//FIXME should actually be using this
+	//EEPROM.write(mode_address, 0);
 	for(int i =0; i <48; i++){
 		for(int j=0; j<8; j++){
 			current_matrix[i][j] = 2; 
 		}
 	}
-
+	randomSeed(analogRead(0));// feed random noise 
 	// Clear display, not strictly needed.
 	// Set initial brightness, default is usuablly max
 	myLeds.clear();
-	myLeds.setBrightness(15); //value range 0-15 zero still shows value
+	myLeds.setBrightness(0); //value range 0-15 zero still shows value
 
 	// Open serial channel for app
 	Serial.begin(38400);
@@ -522,10 +549,12 @@ void sample_complete(){
 				break;
 			case 1:
 				//fftLoop();
-				if(in_vol_loop ==0){
-					all_on_leds();
-					in_vol_loop =1;
-				}
+				/*
+				   if(in_vol_loop ==0){
+				   all_on_leds();
+				   in_vol_loop =1;
+				   }
+				 */
 				volLoop();
 				break;
 		}
@@ -543,33 +572,42 @@ int main(void)
 	setup();
 	sei();		//enable interrupts
 	static int watchdog =0; 
+	int prev_mode = MODE;
 	static int watchdog2 =0; 
-	myLeds.setBrightness(10); //TODO make variable
-	MODE = 0;	//inital mode
+	myLeds.setBrightness(0); //TODO make variable
+	//MODE = 0;	//inital mode
+	MODE = EEPROM.read(mode_address);	//inital mode from memory
 	while (1) {
 		if(debounce_switch()){
 			MODE++;
-			if (MODE >= 3)
+			if (MODE >= 4)
 				MODE = 0;
 		}
-		watchdog++;
+		/*
+		   if(MODE != 2){
+		   }*/
+		if(prev_mode != MODE){
+			prev_mode = MODE;
+			EEPROM.write(mode_address, MODE); //save previous mode to memory
+		}
 		watchdog2++;
+		watchdog++;
 		parserLoop(); //process any serial commands
 		if(watchdog >= 1000000){
-			//myLeds.clear();
-			//_reboot_Teensyduino_(); //restarts teensy
 			myLeds = Matrix(3, 5, 4, NUM_MATRIX);
 			watchdog =0;
 		}
 		if(watchdog2 >= 100000000){
 			//myLeds.clear();
-			_reboot_Teensyduino_(); //restarts teensy
+			//EEPROM.write(mode_address, MODE);
+			//_reboot_Teensyduino_(); //restarts teensy
 			//myLeds = Matrix(3, 5, 4, NUM_MATRIX);
 			watchdog2 =0;
 		}
 		switch(MODE){
 			case 0:
 				if (samplingIsDone()){
+					myLeds.setBrightness(15); //TODO make variable
 					sample_complete();
 				}
 				break;
@@ -586,6 +624,7 @@ int main(void)
 				//bar_fill(21);
 				//in_vol_loop =0;
 				//daft_punk();
+				myLeds.setBrightness(15);
 				all_on_leds();
 				//display_test();
 				break;
@@ -593,6 +632,7 @@ int main(void)
 				//setup();/
 				//myLeds.setBrightness(0); //TODO make variable
 				make_it_rain();
+				//bar_filler();
 				//daft_punk();
 
 				//display_test();
